@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>DigiStore Mobile App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 pb-20 select-none min-h-screen">
+
+    <!-- APP HEADER -->
+    <header class="sticky top-0 z-40 bg-indigo-600 text-white shadow-md p-4 flex items-center justify-between">
+        <div>
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-bolt text-amber-300 text-xl"></i>
+                <span id="app-store-name" class="font-extrabold text-lg tracking-wide">DigiStore</span>
+            </div>
+            <p id="app-store-desc" class="text-[10px] text-indigo-100 font-medium">Pusat Produk Digital Termurah</p>
+        </div>
+        <div class="flex items-center gap-1.5 text-[10px] bg-indigo-700/80 px-2.5 py-1 rounded-full text-indigo-100">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Auto-Sync
+        </div>
+    </header>
+
+    <!-- SECTION INPUT VOUCHER -->
+    <section class="p-4 bg-amber-50 border-b border-amber-200 max-w-md mx-auto">
+        <div class="flex items-center gap-2 mb-1.5">
+            <i class="fa-solid fa-gift text-amber-600 text-sm"></i>
+            <h3 class="font-bold text-xs text-amber-900">Klaim Voucher Gratis (Tonton Iklan)</h3>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" id="user-vouch-code" placeholder="Masukkan Kode Voucher..." class="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs uppercase font-mono outline-none focus:ring-2 focus:ring-amber-500 bg-white"/>
+            <button onclick="applyVoucher()" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg flex-shrink-0 transition">Klaim</button>
+        </div>
+        <div id="vouch-status-msg" class="text-[10px] font-bold mt-1.5"></div>
+    </section>
+
+    <!-- MAIN APP BODY -->
+    <main class="p-4 max-w-md mx-auto">
+        <h2 class="font-bold text-slate-800 text-sm mb-3">Produk Terbaru</h2>
+        <div id="app-products-grid" class="grid grid-cols-2 gap-3">
+            <div class="col-span-2 text-center py-12 text-slate-400 text-xs">
+                <i class="fa-solid fa-circle-notch fa-spin text-indigo-600 text-xl mb-2"></i><br>
+                Menghubungkan ke server...
+            </div>
+        </div>
+    </main>
+
+    <!-- FALLBACK MODAL IKLAN JIKA DIBUKA DI BROWSER WEBSITES -->
+    <div id="ad-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 hidden flex flex-col items-center justify-center p-6 text-white text-center">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-xs w-full shadow-2xl relative">
+            <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">
+                <i class="fa-solid fa-rectangle-ad"></i>
+            </div>
+            <h3 class="font-bold text-sm mb-1">Menonton Iklan AdMob</h3>
+            <p class="text-[11px] text-slate-300 mb-4">Tonton iklan sampai selesai untuk mendapatkan voucher gratis!</p>
+            <div id="ad-timer" class="text-xs font-bold text-amber-400 mb-4">Menyiapkan video... (5s)</div>
+            <button id="btn-close-ad" disabled onclick="finishAdAndClaim()" class="w-full py-2 bg-slate-700 text-slate-400 font-bold text-xs rounded-lg transition">
+                Tunggu Iklan Selesai...
+            </button>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAVBAR -->
+    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 py-2.5 px-6 flex justify-around items-center z-50">
+        <button class="flex flex-col items-center text-indigo-600">
+            <i class="fa-solid fa-store text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">Beranda</span>
+        </button>
+        <button onclick="contactAdmin()" class="flex flex-col items-center text-slate-400 hover:text-slate-600">
+            <i class="fa-brands fa-whatsapp text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">Bantuan</span>
+        </button>
+    </nav>
+
+    <!-- FIREBASE AUTOMATIC SYNC + ADMOB NATIVE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBsIp9Pm6IRpTp9KJtASYkHZMP-y8XT2Qw",
+            authDomain: "gwpp-710dc.firebaseapp.com",
+            projectId: "gwpp-710dc",
+            storageBucket: "gwpp-710dc.firebasestorage.app",
+            messagingSenderId: "864492218132",
+            appId: "1:864492218132:web:a4970d322cf00d9edc4401"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const WA_ADMIN_NUMBER = "6283121282871"; 
+
+        // KONFIGURASI ADMOB ASLI ANDA
+        const ADMOB_APP_ID = "ca-app-pub-3454983597626063~5561534545";
+        const ADMOB_REWARDED_UNIT_ID = "ca-app-pub-3454983597626063/8597540230";
+
+        let activeVoucher = null; 
+
+        // Realtime Listener Info Toko
+        onSnapshot(doc(db, "settings", "store_info"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if(data.name) document.getElementById('app-store-name').innerText = data.name;
+                if(data.desc) document.getElementById('app-store-desc').innerText = data.desc;
+            }
+        });
+
+        // Realtime Listener Produk
+        onSnapshot(collection(db, "products"), (snapshot) => {
+            renderProducts(snapshot);
+        });
+
+        function renderProducts(snapshot) {
+            const grid = document.getElementById('app-products-grid');
+            grid.innerHTML = '';
+
+            if (snapshot.empty) {
+                grid.innerHTML = `<div class="col-span-2 text-center py-10 text-slate-400 text-xs">Belum ada produk saat ini.</div>`;
+                return;
+            }
+
+            snapshot.forEach((docSnap) => {
+                const p = docSnap.data();
+                const id = docSnap.id;
+                const defaultImg = 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=600&q=80';
+                const imgUrl = p.img || defaultImg;
+
+                // Logika Cek Voucher khusus produk tertentu
+                let finalPrice = p.price;
+                let isFreeProduct = false;
+
+                if (activeVoucher) {
+                    const isTargeted = activeVoucher.targetProduct === 'ALL' || !activeVoucher.targetProduct || activeVoucher.targetProduct === id;
+                    
+                    if (isTargeted) {
+                        if (activeVoucher.type === 'FREE') {
+                            finalPrice = 0;
+                            isFreeProduct = true;
+                        } else if (activeVoucher.type === 'DISCOUNT') {
+                            finalPrice = Math.max(0, p.price - activeVoucher.amount);
+                        }
+                    }
+                }
+
+                grid.innerHTML += `
+                    <div class="bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="relative">
+                                <img src="${imgUrl}" class="w-full h-32 object-cover bg-slate-100"/>
+                                ${p.tag ? `<span class="absolute top-2 left-2 text-[9px] font-bold text-white bg-indigo-600/90 backdrop-blur-sm px-2 py-0.5 rounded-md uppercase">${p.tag}</span>` : ''}
+                                ${isFreeProduct ? `<span class="absolute top-2 right-2 text-[9px] font-bold text-white bg-emerald-600 px-2 py-0.5 rounded-md">VOUCHER 100% GRATIS</span>` : ''}
+                            </div>
+                            <div class="p-2.5">
+                                <h3 class="font-bold text-slate-900 text-xs line-clamp-2">${p.name}</h3>
+                                ${p.desc ? `<p class="text-[10px] text-slate-500 mt-1 line-clamp-2">${p.desc}</p>` : ''}
+                                
+                                ${p.promoEnd ? `
+                                    <div class="mt-2 bg-amber-50 border border-amber-200 rounded p-1 text-center">
+                                        <div class="text-[9px] text-amber-800 font-bold flex items-center justify-center gap-1">
+                                            <i class="fa-solid fa-stopwatch text-amber-600"></i> Berakhir dalam:
+                                        </div>
+                                        <div id="timer-${id}" class="text-[10px] font-mono font-bold text-rose-600 mt-0.5">Memuat...</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="p-2.5 pt-0 mt-2">
+                            <div class="flex items-baseline gap-1 mb-2">
+                                <span class="text-xs font-bold ${isFreeProduct ? 'text-emerald-600 font-extrabold text-sm' : 'text-slate-900'}">
+                                    ${finalPrice === 0 ? 'GRATIS (Rp0)' : 'Rp ' + Number(finalPrice).toLocaleString('id-ID')}
+                                </span>
+                                ${isFreeProduct || (activeVoucher && finalPrice < p.price) ? `<span class="text-[10px] text-slate-400 line-through">Rp ${Number(p.price).toLocaleString('id-ID')}</span>` : (p.strike > 0 ? `<span class="text-[10px] text-slate-400 line-through">Rp ${Number(p.strike).toLocaleString('id-ID')}</span>` : '')}
+                            </div>
+                            <button onclick="buyWA(\`${p.name}\`, ${finalPrice}, ${p.price})" class="w-full py-2 ${isFreeProduct ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'} active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
+                                <i class="fa-brands fa-whatsapp"></i> ${isFreeProduct ? 'Klaim Gratis via WA' : 'Beli'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                if (p.promoEnd) {
+                    startTimer(id, p.promoEnd);
+                }
+            });
+        }
+
+        // KLAIM VOUCHER & TAMPILKAN IKLAN ADMOB ASLI NATIVE
+        window.applyVoucher = async function() {
+            const inputCode = document.getElementById('user-vouch-code').value.toUpperCase().trim();
+            const msgEl = document.getElementById('vouch-status-msg');
+
+            if(!inputCode) {
+                msgEl.innerText = "Masukkan kode voucher!";
+                msgEl.className = "text-[10px] font-bold text-rose-600 mt-1.5";
+                return;
+            }
+
+            msgEl.innerText = "Mengecek voucher...";
+            msgEl.className = "text-[10px] font-bold text-amber-600 mt-1.5";
+
+            const q = query(collection(db, "vouchers"), where("code", "==", inputCode));
+            const querySnapshot = await getDocs(q);
+
+            if(querySnapshot.empty) {
+                msgEl.innerText = "Kode voucher tidak ditemukan / kadaluwarsa!";
+                msgEl.className = "text-[10px] font-bold text-rose-600 mt-1.5";
+                return;
+            }
+
+            querySnapshot.forEach((docSnap) => {
+                const v = docSnap.data();
+                if(v.limit <= 0) {
+                    msgEl.innerText = "Kuota voucher ini sudah habis!";
+                    msgEl.className = "text-[10px] font-bold text-rose-600 mt-1.5";
+                    return;
+                }
+
+                window.pendingVoucher = v;
+
+                // CEK JIKA APLIKASI DI-CONVERT VIA WEBINTOAPP (NATIVE ADMOB TRIGGER)
+                if (window.WebIntoApp && window.WebIntoApp.AdMob) {
+                    window.WebIntoApp.AdMob.showRewardedAd(ADMOB_REWARDED_UNIT_ID, function(rewarded) {
+                        if (rewarded) {
+                            finishAdAndClaim();
+                        } else {
+                            alert("Iklan harus ditonton sampai selesai untuk klaim voucher!");
+                        }
+                    });
+                } else {
+                    // Fallback jika dibuka lewat browser biasa
+                    showRewardAdModal();
+                }
+            });
+        };
+
+        function showRewardAdModal() {
+            const modal = document.getElementById('ad-modal');
+            const timerEl = document.getElementById('ad-timer');
+            const btnClose = document.getElementById('btn-close-ad');
+            
+            modal.classList.remove('hidden');
+            let timeLeft = 5;
+
+            const interval = setInterval(() => {
+                timeLeft--;
+                if(timeLeft > 0) {
+                    timerEl.innerText = `Menonton Iklan... (${timeLeft}s)`;
+                } else {
+                    clearInterval(interval);
+                    timerEl.innerText = "Iklan Selesai!";
+                    btnClose.disabled = false;
+                    btnClose.className = "w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition cursor-pointer";
+                    btnClose.innerText = "Klaim Voucher Sekarang!";
+                }
+            }, 1000);
+        }
+
+        window.finishAdAndClaim = function() {
+            document.getElementById('ad-modal').classList.add('hidden');
+            activeVoucher = window.pendingVoucher;
+            
+            const msgEl = document.getElementById('vouch-status-msg');
+            msgEl.innerText = `✅ Voucher ${activeVoucher.code} Aktif!`;
+            msgEl.className = "text-[10px] font-bold text-emerald-600 mt-1.5";
+
+            getDocs(collection(db, "products")).then(snapshot => {
+                renderProducts(snapshot);
+            });
+        };
+
+        function startTimer(elementId, targetDateStr) {
+            const targetTime = new Date(targetDateStr).getTime();
+            const interval = setInterval(() => {
+                const now = new Date().getTime();
+                const diff = targetTime - now;
+                const timerEl = document.getElementById(`timer-${elementId}`);
+                if (!timerEl) {
+                    clearInterval(interval);
+                    return;
+                }
+                if (diff <= 0) {
+                    clearInterval(interval);
+                    timerEl.innerText = "PROMO BERAKHIR";
+                    timerEl.className = "text-[10px] font-bold text-slate-400";
+                    return;
+                }
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                timerEl.innerText = `${hours}j ${minutes}m ${seconds}d`;
+            }, 1000);
+        }
+
+        window.buyWA = function(name, finalPrice, originalPrice) {
+            let voucherText = activeVoucher ? ` (Voucher: ${activeVoucher.code})` : '';
+            const txt = `Halo Admin, saya ingin transaksi produk:\n\n📌 *Produk:* ${name}\n💰 *Harga Akhir:* ${finalPrice === 0 ? 'GRATIS (Rp0)' : 'Rp ' + Number(finalPrice).toLocaleString('id-ID')}${voucherText}`;
+            window.open(`https://wa.me/${WA_ADMIN_NUMBER}?text=${encodeURIComponent(txt)}`, '_blank');
+        };
+
+        window.contactAdmin = function() {
+            window.open(`https://wa.me/${WA_ADMIN_NUMBER}?text=${encodeURIComponent("Halo Admin, saya butuh bantuan mengenai aplikasi.")}`, '_blank');
+        };
+    </script>
+</body>
+</html>
